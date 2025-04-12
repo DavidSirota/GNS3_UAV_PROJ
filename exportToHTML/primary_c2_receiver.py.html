@@ -1,0 +1,98 @@
+<html>
+<head>
+<title>primary_c2_receiver.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #808080;}
+.s1 { color: #a9b7c6;}
+.s2 { color: #cc7832;}
+.s3 { color: #6a8759;}
+.s4 { color: #6897bb;}
+.s5 { color: #629755; font-style: italic;}
+.ln { color: #606366; font-weight: normal; font-style: normal; }
+</style>
+</head>
+<body bgcolor="#2b2b2b">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+primary_c2_receiver.py</font>
+</center></td></tr></table>
+<pre><a name="l1"><span class="ln">1    </span></a><span class="s0">#!/usr/bin/env python3</span>
+<a name="l2"><span class="ln">2    </span></a><span class="s2">import </span><span class="s1">socket</span>
+<a name="l3"><span class="ln">3    </span></a><span class="s2">import </span><span class="s1">ast</span>
+<a name="l4"><span class="ln">4    </span></a><span class="s2">import </span><span class="s1">threading</span>
+<a name="l5"><span class="ln">5    </span></a>
+<a name="l6"><span class="ln">6    </span></a><span class="s0"># Direct telemetry configuration</span>
+<a name="l7"><span class="ln">7    </span></a><span class="s1">HOST = </span><span class="s3">&quot;0.0.0.0&quot;  </span><span class="s0"># Listen on all network interfaces</span>
+<a name="l8"><span class="ln">8    </span></a><span class="s1">DIRECT_PORT = </span><span class="s4">9999  </span><span class="s0"># Port for direct telemetry (including relayed data)</span>
+<a name="l9"><span class="ln">9    </span></a>
+<a name="l10"><span class="ln">10   </span></a><span class="s0"># Multicast configuration for UAV-to-UAV communication</span>
+<a name="l11"><span class="ln">11   </span></a><span class="s1">MULTICAST_GROUP = </span><span class="s3">&quot;239.255.255.250&quot;</span>
+<a name="l12"><span class="ln">12   </span></a><span class="s1">MULTICAST_PORT = </span><span class="s4">5000</span>
+<a name="l13"><span class="ln">13   </span></a>
+<a name="l14"><span class="ln">14   </span></a>
+<a name="l15"><span class="ln">15   </span></a><span class="s2">def </span><span class="s1">receive_direct_telemetry():</span>
+<a name="l16"><span class="ln">16   </span></a>    <span class="s5">&quot;&quot;&quot;Receive direct (and relayed) telemetry from UAVs on port 9999.&quot;&quot;&quot;</span>
+<a name="l17"><span class="ln">17   </span></a>    <span class="s1">sock = socket.socket(socket.AF_INET</span><span class="s2">, </span><span class="s1">socket.SOCK_DGRAM)</span>
+<a name="l18"><span class="ln">18   </span></a>    <span class="s1">sock.bind((HOST</span><span class="s2">, </span><span class="s1">DIRECT_PORT))</span>
+<a name="l19"><span class="ln">19   </span></a>    <span class="s1">print(</span><span class="s3">f&quot;Command Center listening for direct telemetry on port </span><span class="s2">{</span><span class="s1">DIRECT_PORT</span><span class="s2">}</span><span class="s3">&quot;</span><span class="s1">)</span>
+<a name="l20"><span class="ln">20   </span></a>    <span class="s2">while True</span><span class="s1">:</span>
+<a name="l21"><span class="ln">21   </span></a>        <span class="s1">data</span><span class="s2">, </span><span class="s1">addr = sock.recvfrom(</span><span class="s4">1024</span><span class="s1">)</span>
+<a name="l22"><span class="ln">22   </span></a>        <span class="s2">try</span><span class="s1">:</span>
+<a name="l23"><span class="ln">23   </span></a>            <span class="s1">telemetry = ast.literal_eval(data.decode(</span><span class="s3">'utf-8'</span><span class="s1">))</span>
+<a name="l24"><span class="ln">24   </span></a>        <span class="s2">except </span><span class="s1">Exception </span><span class="s2">as </span><span class="s1">e:</span>
+<a name="l25"><span class="ln">25   </span></a>            <span class="s1">print(</span><span class="s3">&quot;Error parsing direct telemetry:&quot;</span><span class="s2">, </span><span class="s1">e)</span>
+<a name="l26"><span class="ln">26   </span></a>            <span class="s1">telemetry = {</span><span class="s3">&quot;raw_data&quot;</span><span class="s1">: data.decode(</span><span class="s3">'utf-8'</span><span class="s1">)}</span>
+<a name="l27"><span class="ln">27   </span></a>        <span class="s1">print(</span><span class="s3">&quot;</span><span class="s2">\n</span><span class="s3">--- Direct Telemetry ---&quot;</span><span class="s1">)</span>
+<a name="l28"><span class="ln">28   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;From </span><span class="s2">{</span><span class="s1">addr</span><span class="s2">}</span><span class="s3">:&quot;</span><span class="s1">)</span>
+<a name="l29"><span class="ln">29   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  UAV ID  : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'id'</span><span class="s2">, </span><span class="s3">'Unknown'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">&quot;</span><span class="s1">)</span>
+<a name="l30"><span class="ln">30   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  Lat/Lon : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'lat'</span><span class="s2">, </span><span class="s3">'N/A'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">, </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'lon'</span><span class="s2">, </span><span class="s3">'N/A'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">&quot;</span><span class="s1">)</span>
+<a name="l31"><span class="ln">31   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  Alt     : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'alt'</span><span class="s2">, </span><span class="s3">'N/A'</span><span class="s1">)</span><span class="s2">} </span><span class="s3">m&quot;</span><span class="s1">)</span>
+<a name="l32"><span class="ln">32   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  Battery : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'battery'</span><span class="s2">, </span><span class="s3">'N/A'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">%&quot;</span><span class="s1">)</span>
+<a name="l33"><span class="ln">33   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  Channel : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'channel'</span><span class="s2">, </span><span class="s3">'None'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">&quot;</span><span class="s1">)</span>
+<a name="l34"><span class="ln">34   </span></a>
+<a name="l35"><span class="ln">35   </span></a>
+<a name="l36"><span class="ln">36   </span></a><span class="s2">def </span><span class="s1">receive_multicast_telemetry():</span>
+<a name="l37"><span class="ln">37   </span></a>    <span class="s5">&quot;&quot;&quot;Listen for multicast telemetry directly from UAVs.&quot;&quot;&quot;</span>
+<a name="l38"><span class="ln">38   </span></a>    <span class="s1">sock = socket.socket(socket.AF_INET</span><span class="s2">, </span><span class="s1">socket.SOCK_DGRAM</span><span class="s2">, </span><span class="s1">socket.IPPROTO_UDP)</span>
+<a name="l39"><span class="ln">39   </span></a>    <span class="s1">sock.setsockopt(socket.SOL_SOCKET</span><span class="s2">, </span><span class="s1">socket.SO_REUSEADDR</span><span class="s2">, </span><span class="s4">1</span><span class="s1">)</span>
+<a name="l40"><span class="ln">40   </span></a>    <span class="s1">sock.bind((</span><span class="s3">''</span><span class="s2">, </span><span class="s1">MULTICAST_PORT))</span>
+<a name="l41"><span class="ln">41   </span></a>
+<a name="l42"><span class="ln">42   </span></a>    <span class="s1">mreq = socket.inet_aton(MULTICAST_GROUP) + socket.inet_aton(</span><span class="s3">&quot;0.0.0.0&quot;</span><span class="s1">)</span>
+<a name="l43"><span class="ln">43   </span></a>    <span class="s1">sock.setsockopt(socket.IPPROTO_IP</span><span class="s2">, </span><span class="s1">socket.IP_ADD_MEMBERSHIP</span><span class="s2">, </span><span class="s1">mreq)</span>
+<a name="l44"><span class="ln">44   </span></a>    <span class="s1">print(</span><span class="s3">f&quot;Command Center listening for multicast telemetry on </span><span class="s2">{</span><span class="s1">MULTICAST_GROUP</span><span class="s2">}</span><span class="s3">:</span><span class="s2">{</span><span class="s1">MULTICAST_PORT</span><span class="s2">}</span><span class="s3">&quot;</span><span class="s1">)</span>
+<a name="l45"><span class="ln">45   </span></a>
+<a name="l46"><span class="ln">46   </span></a>    <span class="s2">while True</span><span class="s1">:</span>
+<a name="l47"><span class="ln">47   </span></a>        <span class="s1">data</span><span class="s2">, </span><span class="s1">addr = sock.recvfrom(</span><span class="s4">1024</span><span class="s1">)</span>
+<a name="l48"><span class="ln">48   </span></a>        <span class="s2">try</span><span class="s1">:</span>
+<a name="l49"><span class="ln">49   </span></a>            <span class="s1">telemetry = ast.literal_eval(data.decode(</span><span class="s3">'utf-8'</span><span class="s1">))</span>
+<a name="l50"><span class="ln">50   </span></a>        <span class="s2">except </span><span class="s1">Exception </span><span class="s2">as </span><span class="s1">e:</span>
+<a name="l51"><span class="ln">51   </span></a>            <span class="s1">print(</span><span class="s3">&quot;Error parsing multicast telemetry:&quot;</span><span class="s2">, </span><span class="s1">e)</span>
+<a name="l52"><span class="ln">52   </span></a>            <span class="s1">telemetry = {</span><span class="s3">&quot;raw_data&quot;</span><span class="s1">: data.decode(</span><span class="s3">'utf-8'</span><span class="s1">)}</span>
+<a name="l53"><span class="ln">53   </span></a>        <span class="s1">print(</span><span class="s3">&quot;</span><span class="s2">\n</span><span class="s3">+++ Multicast Telemetry +++&quot;</span><span class="s1">)</span>
+<a name="l54"><span class="ln">54   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;From </span><span class="s2">{</span><span class="s1">addr</span><span class="s2">}</span><span class="s3">:&quot;</span><span class="s1">)</span>
+<a name="l55"><span class="ln">55   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  UAV ID  : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'id'</span><span class="s2">, </span><span class="s3">'Unknown'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">&quot;</span><span class="s1">)</span>
+<a name="l56"><span class="ln">56   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  Lat/Lon : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'lat'</span><span class="s2">, </span><span class="s3">'N/A'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">, </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'lon'</span><span class="s2">, </span><span class="s3">'N/A'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">&quot;</span><span class="s1">)</span>
+<a name="l57"><span class="ln">57   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  Alt     : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'alt'</span><span class="s2">, </span><span class="s3">'N/A'</span><span class="s1">)</span><span class="s2">} </span><span class="s3">m&quot;</span><span class="s1">)</span>
+<a name="l58"><span class="ln">58   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  Battery : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'battery'</span><span class="s2">, </span><span class="s3">'N/A'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">%&quot;</span><span class="s1">)</span>
+<a name="l59"><span class="ln">59   </span></a>        <span class="s1">print(</span><span class="s3">f&quot;  Channel : </span><span class="s2">{</span><span class="s1">telemetry.get(</span><span class="s3">'channel'</span><span class="s2">, </span><span class="s3">'None'</span><span class="s1">)</span><span class="s2">}</span><span class="s3">&quot;</span><span class="s1">)</span>
+<a name="l60"><span class="ln">60   </span></a>
+<a name="l61"><span class="ln">61   </span></a>
+<a name="l62"><span class="ln">62   </span></a><span class="s2">if </span><span class="s1">__name__ == </span><span class="s3">&quot;__main__&quot;</span><span class="s1">:</span>
+<a name="l63"><span class="ln">63   </span></a>    <span class="s0"># Start threads to concurrently listen for both direct and multicast telemetry.</span>
+<a name="l64"><span class="ln">64   </span></a>    <span class="s1">direct_thread = threading.Thread(target=receive_direct_telemetry</span><span class="s2">, </span><span class="s1">daemon=</span><span class="s2">True</span><span class="s1">)</span>
+<a name="l65"><span class="ln">65   </span></a>    <span class="s1">multicast_thread = threading.Thread(target=receive_multicast_telemetry</span><span class="s2">, </span><span class="s1">daemon=</span><span class="s2">True</span><span class="s1">)</span>
+<a name="l66"><span class="ln">66   </span></a>
+<a name="l67"><span class="ln">67   </span></a>    <span class="s1">direct_thread.start()</span>
+<a name="l68"><span class="ln">68   </span></a>    <span class="s1">multicast_thread.start()</span>
+<a name="l69"><span class="ln">69   </span></a>
+<a name="l70"><span class="ln">70   </span></a>    <span class="s0"># Keep the main thread running.</span>
+<a name="l71"><span class="ln">71   </span></a>    <span class="s2">try</span><span class="s1">:</span>
+<a name="l72"><span class="ln">72   </span></a>        <span class="s2">while True</span><span class="s1">:</span>
+<a name="l73"><span class="ln">73   </span></a>            <span class="s2">pass</span>
+<a name="l74"><span class="ln">74   </span></a>    <span class="s2">except </span><span class="s1">KeyboardInterrupt:</span>
+<a name="l75"><span class="ln">75   </span></a>        <span class="s1">print(</span><span class="s3">&quot;</span><span class="s2">\n</span><span class="s3">Command Center shutting down.&quot;</span><span class="s1">)</span>
+<a name="l76"><span class="ln">76   </span></a></pre>
+</body>
+</html>

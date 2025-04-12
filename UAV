@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+import socket
+import time
+import random
+
+# Configuration
+C2_IP = "10.0.2.10"    # IP of the primary command control center
+C2_PORT = 9999         # Port for receiving telemetry
+UAV_ID = "UAV1"        # Change for each UAV instance
+
+def generate_telemetry():
+    # Simulate some telemetry: latitude, longitude, altitude, battery level
+    telemetry = {
+        "id": UAV_ID,
+        "lat": round(40.7128 + random.uniform(-0.05, 0.05), 4),
+        "lon": round(-74.0060 + random.uniform(-0.05, 0.05), 4),
+        "alt": random.randint(100, 500),  # altitude in meters
+        "battery": random.randint(20, 100)  # battery percentage
+    }
+    return str(telemetry)
+
+def send_telemetry():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        while True:
+            message = generate_telemetry()
+            sock.sendto(message.encode('utf-8'), (C2_IP, C2_PORT))
+            print(f"{UAV_ID} sent: {message}")
+            time.sleep(5)  # send telemetry every 5 seconds
+
+if __name__ == "__main__":
+    try:
+        send_telemetry()
+    except KeyboardInterrupt:
+        print("Telemetry simulation stopped.")
