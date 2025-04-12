@@ -2,33 +2,112 @@
 import socket
 import time
 import random
+import sys
+import threading
+import ast
 
-# Configuration
-C2_IP = "10.0.2.10"    # IP of the primary command control center
-C2_PORT = 9999         # Port for receiving telemetry
-UAV_ID = "UAV1"        # Change for each UAV instance
+# Ensure a UAV ID is provided as a command-line argument
+if len(sys.argv) < 2:
+    print("Usage: python3 uav_comm.py <UAV_ID>")
+    sys.exit(1)
+
+UAV_ID = sys.argv[1]
+
+# Direct telemetry configuration:
+# Set C2_IP to the Command Center container's IP (or its container name via Docker DNS, if available)
+C2_IP = "172.18.0.5"
+C2_PORT = 9999  # Port for direct telemetry
+
+# Multicast configuration for UAV-to-UAV communication:
+MULTICAST_GROUP = "239.255.255.250"
+MULTICAST_PORT = 5000
+
 
 def generate_telemetry():
-    # Simulate some telemetry: latitude, longitude, altitude, battery level
+    """
+    Generate simulated telemetry data including UAV ID, location, altitude, and battery level.
+    The "channel" field is left as None for now; it can be updated later if you integrate frequency scanning.
+    """
     telemetry = {
         "id": UAV_ID,
         "lat": round(40.7128 + random.uniform(-0.05, 0.05), 4),
         "lon": round(-74.0060 + random.uniform(-0.05, 0.05), 4),
-        "alt": random.randint(100, 500),  # altitude in meters
-        "battery": random.randint(20, 100)  # battery percentage
+        "alt": random.randint(100, 500),
+        "battery": random.randint(20, 100),
+        "channel": None
     }
     return str(telemetry)
 
-def send_telemetry():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        while True:
-            message = generate_telemetry()
-            sock.sendto(message.encode('utf-8'), (C2_IP, C2_PORT))
-            print(f"{UAV_ID} sent: {message}")
-            time.sleep(5)  # send telemetry every 5 seconds
+
+def send_to_command_center():
+    """
+    Send this UAV's own telemetry directly to the Command Center every 5 seconds.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    while True:
+        message = generate_telemetry()
+        sock.sendto(message.encode('utf-8'), (C2_IP, C2_PORT))
+        print(f"{UAV_ID} sent to C2: {message}")
+        time.sleep(5)
+
+
+def send_direct_broadcast():
+    """
+    Broadcast this UAV's telemetry via multicast for peer-to-peer communication.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    # Set TTL to restrict multicast packets to the local network.
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
+    while True:
+        message = generate_telemetry()
+        sock.sendto(message.encode('utf-8'), (MULTICAST_GROUP, MULTICAST_PORT))
+        print(f"{UAV_ID} broadcasted on multicast: {message}")
+        time.sleep(5)
+
+
+def listen_to_multicast():
+    """
+    Listen for multicast messages from peer UAVs.
+    When a message is received from another UAV, append the current UAV's ID to a
+    'relay_hops' list (creating it if necessary) and relay the updated message to the Command Center.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(('', MULTICAST_PORT))
+
+    mreq = socket.inet_aton(MULTICAST_GROUP) + socket.inet_aton("0.0.0.0")
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+
+    # Create a separate socket for relaying messages to the Command Center
+    relay_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    while True:
+        data, addr = sock.recvfrom(1024)
+        try:
+            telem = ast.literal_eval(data.decode('utf-8'))
+            # Process only messages from other UAVs
+            if telem.get("id") != UAV_ID:
+                # Append relay metadata: add this UAV's ID to the relay_hops list
+                if "relay_hops" in telem:
+                    if UAV_ID not in telem["relay_hops"]:
+                        telem["relay_hops"].append(UAV_ID)
+                else:
+                    telem["relay_hops"] = [UAV_ID]
+                updated_message = str(telem)
+                print(f"{UAV_ID} received multicast from {telem.get('id')}: {telem}")
+                relay_sock.sendto(updated_message.encode('utf-8'), (C2_IP, C2_PORT))
+        except Exception as e:
+            print(f"{UAV_ID} error parsing multicast: {e}")
+
 
 if __name__ == "__main__":
-    try:
-        send_telemetry()
-    except KeyboardInterrupt:
-        print("Telemetry simulation stopped.")
+    # Start a thread for sending telemetry directly to the Command Center
+    threading.Thread(target=send_to_command_center, daemon=True).start()
+    # Start a thread for broadcasting telemetry via multicast
+    threading.Thread(target=send_direct_broadcast, daemon=True).start()
+    # Start a thread for listening and relaying multicast messages from peers
+    threading.Thread(target=listen_to_multicast, daemon=True).start()
+
+    # Keep the main thread alive
+    while True:
+        time.sleep(1)
